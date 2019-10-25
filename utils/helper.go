@@ -19,5 +19,5 @@ func DefaultHandFunc(conn *net.TCPConn, data []byte, cnt int) error {
 		fmt.Println("HandFunc write err", err)
 		return fmt.Errorf("%w HandFunc write err", err)
 	}
-	return
+	return nil
 }
