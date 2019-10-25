@@ -15,7 +15,7 @@ type Server struct {
 }
 
 func (s *Server) Start() {
-	fmt.Printf("[START] Server listener at IP: %s, Port %d , is starting...\n", s.IP, s.Port)
+	fmt.Printf("[Zinx] Server listener at IP: %s, Port %d , is starting...\n", s.IP, s.Port)
 	go func() {
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {

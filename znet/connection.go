@@ -19,7 +19,8 @@ type Connection struct {
 	handlerAPI ziface.HandFunc
 
 	// 关闭 chan
-	done chan struct{}
+	done     chan struct{}
+	readDone chan struct{}
 }
 
 // StartReader 处理conn读数据的Goroutine
@@ -29,17 +30,22 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
-		// 读取客户端发送的数据
-		buf := make([]byte, 512)
-		cnt, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("recv buf err", err)
-			break
-		}
-		// 调用当前连接的业务(这里执行的是当前conn的绑定的handle方法)
-		if err := c.handlerAPI(c.Conn, buf, cnt); err != nil {
-			fmt.Println("connID ", c.isClosed, "handle is error")
-			break
+		select {
+		case <-c.readDone:
+			return
+		default:
+			// 读取客户端发送的数据
+			buf := make([]byte, 512)
+			cnt, err := c.Conn.Read(buf)
+			if err != nil {
+				fmt.Println("recv buf err", err)
+				return
+			}
+			// 调用当前连接的业务(这里执行的是当前conn的绑定的handle方法)
+			if err := c.handlerAPI(c.Conn, buf, cnt); err != nil {
+				fmt.Println("connID ", c.isClosed, "handle is error")
+				return
+			}
 		}
 	}
 
@@ -54,6 +60,8 @@ func (c *Connection) Start() {
 	for {
 		select {
 		case <-c.done:
+			c.readDone <- struct{}{}
+			close(c.readDone)
 			return
 		}
 	}
@@ -99,6 +107,7 @@ func NewConnection(conn *net.TCPConn, connIdD uint32, callbackFunc ziface.HandFu
 		isClosed:   false,
 		handlerAPI: callbackFunc,
 		done:       make(chan struct{}, 1),
+		readDone:   make(chan struct{}, 1),
 	}
 	return c
 }
