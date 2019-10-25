@@ -14,7 +14,7 @@ const (
 // DefaultHandFunc 默认的业务处理handler
 func DefaultHandFunc(conn *net.TCPConn, data []byte, cnt int) error {
 	// 回显
-	_, err := conn.Write(data)
+	_, err := conn.Write(data[:cnt])
 	if err != nil {
 		fmt.Println("HandFunc write err", err)
 		return fmt.Errorf("%w HandFunc write err", err)

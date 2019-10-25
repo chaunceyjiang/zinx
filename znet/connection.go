@@ -3,7 +3,6 @@ package znet
 import (
 	"fmt"
 	"net"
-	"zinx/utils"
 	"zinx/ziface"
 )
 
@@ -98,7 +97,7 @@ func NewConnection(conn *net.TCPConn, connIdD uint32, callbackFunc ziface.HandFu
 		Conn:       conn,
 		ConnID:     connIdD,
 		isClosed:   false,
-		handlerAPI: utils.DefaultHandFunc,
+		handlerAPI: callbackFunc,
 		done:       make(chan struct{}, 1),
 	}
 	return c

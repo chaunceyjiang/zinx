@@ -16,38 +16,28 @@ type Server struct {
 
 func (s *Server) Start() {
 	fmt.Printf("[START] Server listener at IP: %s, Port %d , is starting...\n", s.IP, s.Port)
-	addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
-	if err != nil {
-		fmt.Println("resolve tcp addr err ", err)
-		return
-	}
-	listener, err := net.ListenTCP(s.IPVersion, addr)
-	if err != nil {
-		fmt.Println("listen ", s.IPVersion, addr.String(), "err", err)
-	}
-	fmt.Println("start Zinx server  ", s.Name, "success, now listening")
 	go func() {
+		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
+		if err != nil {
+			fmt.Println("resolve tcp addr err ", err)
+			return
+		}
+		listener, err := net.ListenTCP(s.IPVersion, addr)
+		if err != nil {
+			fmt.Println("listen ", s.IPVersion, addr.String(), "err", err)
+		}
+		fmt.Println("start Zinx server  ", s.Name, "success, now listening")
+		var connID uint32 = 0
 		for {
 			conn, err := listener.AcceptTCP()
 			if err != nil {
 				fmt.Println("AcceptTcp err", err)
 				continue
 			}
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					n, err := conn.Read(buf)
-					if err != nil {
-						fmt.Println("recv buf err", err)
-						continue
-					}
 
-					if _, err := conn.Write(buf[:n]); err != nil {
-						fmt.Println("Write back buf err", err)
-						continue
-					}
-				}
-			}()
+			dealConn := NewConnection(conn,connID,utils.DefaultHandFunc)
+			go dealConn.Start()
+			connID++
 		}
 	}()
 
