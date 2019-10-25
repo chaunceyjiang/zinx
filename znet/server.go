@@ -8,10 +8,17 @@ import (
 )
 
 type Server struct {
-	Name      string // 服务器名称
-	IPVersion string // ip版本
-	IP        string // 服务器绑定的地址
-	Port      int
+	Name      string         // 服务器名称
+	IPVersion string         // ip版本
+	IP        string         // 服务器绑定的地址
+	Port      int            // 服务器监听的端口
+	Router    ziface.IRouter // 当前server注册的对应的处理业务的router
+}
+
+func (s *Server) AddRouter(router ziface.IRouter) {
+	//panic("implement me")
+	s.Router = router
+	fmt.Println("Add Router success")
 }
 
 func (s *Server) Start() {
@@ -35,7 +42,7 @@ func (s *Server) Start() {
 				continue
 			}
 
-			dealConn := NewConnection(conn,connID,utils.DefaultHandFunc)
+			dealConn := NewConnection(conn, connID, utils.DefaultHandFunc, s.Router)
 			go dealConn.Start()
 			connID++
 		}
@@ -60,6 +67,7 @@ func NewServer(name string) ziface.IServer {
 		IPVersion: utils.DEFAULT_IP_VERSION,
 		IP:        utils.DEFAULT_IP,
 		Port:      utils.DEFAULT_PORT,
+		Router:    nil,
 	}
 	return s
 

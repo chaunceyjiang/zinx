@@ -1,7 +1,9 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"zinx/ziface"
 )
@@ -18,9 +20,11 @@ type Connection struct {
 	// 该连接的处理方法func
 	handlerAPI ziface.HandFunc
 
+	//该连接的处理方法router
+	Router ziface.IRouter
+
 	// 关闭 chan
-	done     chan struct{}
-	readDone chan struct{}
+	done chan struct{}
 }
 
 // StartReader 处理conn读数据的Goroutine
@@ -30,23 +34,34 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
-		select {
-		case <-c.readDone:
-			return
-		default:
-			// 读取客户端发送的数据
-			buf := make([]byte, 512)
-			cnt, err := c.Conn.Read(buf)
-			if err != nil {
+
+		// 读取客户端发送的数据
+		buf := make([]byte, 512)
+		_, err := c.Conn.Read(buf)
+		if err != nil {
+			if errors.Is(err,io.EOF){
+				fmt.Println("客户端连接断开")
+			}else {
 				fmt.Println("recv buf err", err)
-				return
 			}
-			// 调用当前连接的业务(这里执行的是当前conn的绑定的handle方法)
-			if err := c.handlerAPI(c.Conn, buf, cnt); err != nil {
-				fmt.Println("connID ", c.isClosed, "handle is error")
-				return
-			}
+			return
 		}
+		req := &Request{
+			conn: c,
+			data: buf,
+		}
+
+		go func(request ziface.IRequest) {
+			//从路由Routers 中找到注册绑定Conn的对应Handle
+			c.Router.PreHandle(request)
+			c.Router.Handle(request)
+			c.Router.PostHandle(request)
+		}(req)
+		// 调用当前连接的业务(这里执行的是当前conn的绑定的handle方法)
+		//if err := c.handlerAPI(c.Conn, buf, cnt); err != nil {
+		//	fmt.Println("connID ", c.isClosed, "handle is error")
+		//	return
+		//}
 	}
 
 }
@@ -60,8 +75,6 @@ func (c *Connection) Start() {
 	for {
 		select {
 		case <-c.done:
-			c.readDone <- struct{}{}
-			close(c.readDone)
 			return
 		}
 	}
@@ -100,14 +113,14 @@ func (c *Connection) Send([]byte) error {
 	panic("implement me")
 }
 
-func NewConnection(conn *net.TCPConn, connIdD uint32, callbackFunc ziface.HandFunc) *Connection {
+func NewConnection(conn *net.TCPConn, connIdD uint32, callbackFunc ziface.HandFunc, router ziface.IRouter) *Connection {
 	c := &Connection{
 		Conn:       conn,
 		ConnID:     connIdD,
 		isClosed:   false,
 		handlerAPI: callbackFunc,
 		done:       make(chan struct{}, 1),
-		readDone:   make(chan struct{}, 1),
+		Router:     router,
 	}
 	return c
 }
