@@ -40,10 +40,27 @@ func (b *PingRouter) Handle(request ziface.IRequest) {
 }
 
 
+type HelloZinxRouter struct {
+	BaseRouter
+}
+
+func (h *HelloZinxRouter) Handle(request ziface.IRequest) {
+	fmt.Println("Call HelloZinxRouter Handle")
+	//先读取客户端的数据，再回写ping...ping...ping
+	fmt.Println("recv from client : msgId=", request.GetMsgId(), ", data=", string(request.GetData()))
+
+	err := request.GetConnection().SendMsg(request.GetMsgId()+1, []byte("Hello Zinx Router V0.6"))
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+
 
 func TestServer_AddRouter(t *testing.T) {
 	server := NewServer("test")
-	server.AddRouter(&PingRouter{})
+	server.AddRouter(1,&PingRouter{})
+	server.AddRouter(2,&HelloZinxRouter{})
 	go server.Serve()
 	time.Sleep(1 * time.Second)
 	addr, _ := net.ResolveTCPAddr(utils.DEFAULT_IP_VERSION, fmt.Sprintf("%s:%d", utils.DEFAULT_IP, utils.DEFAULT_PORT))
@@ -64,4 +81,22 @@ func TestServer_AddRouter(t *testing.T) {
 
 	assert.Equal(t, true, m.GetMsgId() == 2)
 	assert.Equal(t, "hello world", string(body))
+
+
+
+
+	msg, _ = dp.Pack(NewMsgPackage(2, []byte("hello world")))
+
+	_, err = conn.Write(msg)
+	assert.Equal(t, nil, err, "write tcp")
+	head = make([]byte, dp.GetHeadLen())
+
+	io.ReadFull(conn, head)
+	m, _ = dp.Unpack(head)
+	body = make([]byte, m.GetDataLen())
+	io.ReadFull(conn, body)
+
+	assert.Equal(t, true, m.GetMsgId() == 3)
+	assert.Equal(t, "Hello Zinx Router V0.6", string(body))
+
 }

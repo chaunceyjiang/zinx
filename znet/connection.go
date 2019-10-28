@@ -10,15 +10,15 @@ import (
 
 type Connection struct {
 	// 当前业务的原生socket
-	Conn *net.TCPConn
+	conn *net.TCPConn
 	// 当前连接的ip
-	ConnID uint32
+	connID uint32
 
 	//当前的连接状态
 	isClosed bool
 
 	//该连接的处理方法router
-	Router ziface.IRouter
+	msgHandle ziface.ImsgHandle
 
 	// 关闭 chan
 	done chan struct{}
@@ -29,9 +29,8 @@ func (c *Connection) StartReader() {
 	fmt.Println("Reader Goroutine is running")
 	defer fmt.Println(c.RemoteAddr().String(), "conn reader exit!")
 	defer c.Stop()
-
+	dp := NewDataPack()
 	for {
-		dp := NewDataPack()
 		// 读取客户端发送的数据
 		head := make([]byte, dp.GetHeadLen())
 		if _, err := io.ReadFull(c.GetTCPConnection(), head); err != nil {
@@ -58,14 +57,9 @@ func (c *Connection) StartReader() {
 			msg:  msg,
 		}
 
-		go func(request ziface.IRequest) {
-			//从路由Routers 中找到注册绑定Conn的对应Handle
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(req)
+		go c.msgHandle.DoMsgHandler(req)
 		// 调用当前连接的业务(这里执行的是当前conn的绑定的handle方法)
-		//if err := c.handlerAPI(c.Conn, buf, cnt); err != nil {
+		//if err := c.handlerAPI(c.conn, buf, cnt); err != nil {
 		//	fmt.Println("connID ", c.isClosed, "handle is error")
 		//	return
 		//}
@@ -97,7 +91,7 @@ func (c *Connection) Stop() {
 	c.isClosed = true
 
 	// 关闭原生连接
-	c.Conn.Close()
+	c.conn.Close()
 
 	c.done <- struct{}{}
 
@@ -105,15 +99,15 @@ func (c *Connection) Stop() {
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {
-	return c.Conn
+	return c.conn
 }
 
 func (c *Connection) GetConnID() uint32 {
-	return c.ConnID
+	return c.connID
 }
 
 func (c *Connection) RemoteAddr() net.Addr {
-	return c.Conn.RemoteAddr()
+	return c.conn.RemoteAddr()
 }
 
 func (c *Connection) SendMsg(msgId uint32, data []byte) error {
@@ -126,7 +120,7 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		fmt.Println("Pack error msg id = ", msgId)
 		return errors.New("Pack error msg ")
 	}
-	if _, err := c.Conn.Write(msg); err != nil {
+	if _, err := c.conn.Write(msg); err != nil {
 		fmt.Println("Write msg id ", msgId, " error ")
 		return errors.New("conn Write error")
 	}
@@ -134,13 +128,13 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func NewConnection(conn *net.TCPConn, connIdD uint32, router ziface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) *Connection {
 	c := &Connection{
-		Conn:     conn,
-		ConnID:   connIdD,
-		isClosed: false,
-		done:     make(chan struct{}, 1),
-		Router:   router,
+		conn:      conn,
+		connID:    connIdD,
+		isClosed:  false,
+		done:      make(chan struct{}, 1),
+		msgHandle: router,
 	}
 	return c
 }
