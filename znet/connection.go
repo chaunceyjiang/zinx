@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"zinx/utils"
 	"zinx/ziface"
 )
 
@@ -58,8 +59,12 @@ func (c *Connection) StartReader() {
 			conn: c,
 			msg:  msg,
 		}
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			c.msgHandle.SendMsgToTaskQueue(req)
+		}else {
+			go c.msgHandle.DoMsgHandler(req)
+		}
 
-		go c.msgHandle.DoMsgHandler(req)
 		// 调用当前连接的业务(这里执行的是当前conn的绑定的handle方法)
 		//if err := c.handlerAPI(c.conn, buf, cnt); err != nil {
 		//	fmt.Println("connID ", c.isClosed, "handle is error")

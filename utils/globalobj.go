@@ -12,6 +12,8 @@ type GlobalObj struct {
 	Version string `json:"version"`
 	MaxPacketSize uint32 `json:"max_packet_size"`
 	MaxConn int `json:"max_conn"`
+	WorkerPoolSize uint32 `json:"worker_pool_size"`
+	MaxWorkerTaskLen uint32 `json:"max_worker_task_len"`
 }
 
 var GlobalObject *GlobalObj
@@ -34,6 +36,8 @@ func init()  {
 		Version:       "0.4",
 		MaxPacketSize: 4049,
 		MaxConn:       12000,
+		WorkerPoolSize: 100,
+		MaxWorkerTaskLen: 1024,
 	}
 	GlobalObject.Reload()
 }
