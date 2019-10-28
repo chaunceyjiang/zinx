@@ -22,6 +22,8 @@ type Connection struct {
 
 	// 关闭 chan
 	done chan struct{}
+	//无缓冲管道，用于读、写两个goroutine之间的消息通信
+	msgChan chan []byte
 }
 
 // StartReader 处理conn读数据的Goroutine
@@ -67,12 +69,28 @@ func (c *Connection) StartReader() {
 
 }
 
+func (c *Connection) StartWriter() {
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(),"[ conn writer exit ]")
+	for {
+		select {
+		case msg := <-c.msgChan:
+			if _, err := c.conn.Write(msg); err != nil {
+				fmt.Println("Write connID id ", c.connID, " error ")
+				return
+			}
+		case <-c.done:
+			return
+		}
+	}
+}
 // Start 启动业务连接
 func (c *Connection) Start() {
 
 	// 开启处理该链接读取到客户端数据之后的请求业务
 	go c.StartReader()
-
+	//2 开启用于写回客户端数据流程的Goroutine
+	go c.StartWriter()
 	for {
 		select {
 		case <-c.done:
@@ -94,7 +112,7 @@ func (c *Connection) Stop() {
 	c.conn.Close()
 
 	c.done <- struct{}{}
-
+	close(c.msgChan)
 	close(c.done)
 }
 
@@ -120,11 +138,8 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		fmt.Println("Pack error msg id = ", msgId)
 		return errors.New("Pack error msg ")
 	}
-	if _, err := c.conn.Write(msg); err != nil {
-		fmt.Println("Write msg id ", msgId, " error ")
-		return errors.New("conn Write error")
-	}
 
+	c.msgChan <- msg
 	return nil
 }
 
@@ -135,6 +150,7 @@ func NewConnection(conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) 
 		isClosed:  false,
 		done:      make(chan struct{}, 1),
 		msgHandle: router,
+		msgChan:make(chan []byte),
 	}
 	return c
 }
