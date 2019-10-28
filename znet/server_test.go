@@ -3,6 +3,7 @@ package znet
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -67,12 +68,7 @@ func TestServer_AddRouter(t *testing.T) {
 	assert.Equal(t, nil, err, "dial tcp")
 	_, err = conn.Write([]byte("hello world"))
 	assert.Equal(t, nil, err, "write tcp")
-
-	// TODO 这里的测试代码
-
-	//data, _ := ioutil.ReadAll(conn)
-	//fmt.Println("read all", string(data))
-	//
-	////assert.Equal(t, "After ping .....\n", string(data), string(data))
-	//time.Sleep(2 * time.Second)
+	buf :=make([]byte,53)
+	io.ReadFull(conn,buf)
+	assert.Equal(t, "before ping ....\nping...ping...ping\nAfter ping .....\n", string(buf))
 }
