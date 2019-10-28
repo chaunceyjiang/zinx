@@ -17,9 +17,6 @@ type Connection struct {
 	//当前的连接状态
 	isClosed bool
 
-	// 该连接的处理方法func
-	handlerAPI ziface.HandFunc
-
 	//该连接的处理方法router
 	Router ziface.IRouter
 
@@ -34,21 +31,31 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
-
+		dp := NewDataPack()
 		// 读取客户端发送的数据
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			if errors.Is(err,io.EOF){
-				fmt.Println("客户端连接断开")
-			}else {
-				fmt.Println("recv buf err", err)
-			}
+		head := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), head); err != nil {
+			fmt.Println("recv msg head error", err)
 			return
 		}
+		msg, err := dp.Unpack(head)
+		if err != nil {
+			fmt.Println("unpack error ", err)
+			return
+		}
+		var data []byte
+		if msg.GetDataLen() > 0 {
+			data = make([]byte, msg.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data error ", err)
+				return
+			}
+		}
+
+		msg.SetData(data)
 		req := &Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
 
 		go func(request ziface.IRequest) {
@@ -109,18 +116,31 @@ func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-func (c *Connection) Send([]byte) error {
-	panic("implement me")
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed {
+		return errors.New("Connection closed when send msg\n")
+	}
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("Pack error msg id = ", msgId)
+		return errors.New("Pack error msg ")
+	}
+	if _, err := c.Conn.Write(msg); err != nil {
+		fmt.Println("Write msg id ", msgId, " error ")
+		return errors.New("conn Write error")
+	}
+
+	return nil
 }
 
-func NewConnection(conn *net.TCPConn, connIdD uint32, callbackFunc ziface.HandFunc, router ziface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connIdD uint32, router ziface.IRouter) *Connection {
 	c := &Connection{
-		Conn:       conn,
-		ConnID:     connIdD,
-		isClosed:   false,
-		handlerAPI: callbackFunc,
-		done:       make(chan struct{}, 1),
-		Router:     router,
+		Conn:     conn,
+		ConnID:   connIdD,
+		isClosed: false,
+		done:     make(chan struct{}, 1),
+		Router:   router,
 	}
 	return c
 }

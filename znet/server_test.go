@@ -32,31 +32,14 @@ type PingRouter struct {
 	BaseRouter
 }
 
-func (b *PingRouter) PreHandle(request ziface.IRequest) {
-	fmt.Println("Call PingRouter PreHandle")
-	_, err := request.GetConnection().GetTCPConnection().Write([]byte("before ping ....\n"))
-	if err != nil {
-		fmt.Println("call back ping error")
-	}
-}
-
 //Test Handle
 func (b *PingRouter) Handle(request ziface.IRequest) {
 	fmt.Println("Call PingRouter Handle")
-	_, err := request.GetConnection().GetTCPConnection().Write([]byte("ping...ping...ping\n"))
-	if err != nil {
-		fmt.Println("call back ping ping ping error")
-	}
+	fmt.Println("recv from client : msgId=", request.GetMsgId(), ", data=", string(request.GetData()))
+	request.GetConnection().SendMsg(request.GetMsgId()+1, request.GetData())
 }
 
-//Test PostHandle
-func (b *PingRouter) PostHandle(request ziface.IRequest) {
-	fmt.Println("Call PingRouter PostHandle")
-	_, err := request.GetConnection().GetTCPConnection().Write([]byte("After ping .....\n"))
-	if err != nil {
-		fmt.Println("call back ping ping ping error")
-	}
-}
+
 
 func TestServer_AddRouter(t *testing.T) {
 	server := NewServer("test")
@@ -66,9 +49,19 @@ func TestServer_AddRouter(t *testing.T) {
 	addr, _ := net.ResolveTCPAddr(utils.DEFAULT_IP_VERSION, fmt.Sprintf("%s:%d", utils.DEFAULT_IP, utils.DEFAULT_PORT))
 	conn, err := net.DialTCP(utils.DEFAULT_IP_VERSION, nil, addr)
 	assert.Equal(t, nil, err, "dial tcp")
-	_, err = conn.Write([]byte("hello world"))
+
+	dp := NewDataPack()
+	msg, _ := dp.Pack(NewMsgPackage(1, []byte("hello world")))
+
+	_, err = conn.Write(msg)
 	assert.Equal(t, nil, err, "write tcp")
-	buf :=make([]byte,53)
-	io.ReadFull(conn,buf)
-	assert.Equal(t, "before ping ....\nping...ping...ping\nAfter ping .....\n", string(buf))
+	head := make([]byte, dp.GetHeadLen())
+
+	io.ReadFull(conn, head)
+	m, _ := dp.Unpack(head)
+	body := make([]byte, m.GetDataLen())
+	io.ReadFull(conn, body)
+
+	assert.Equal(t, true, m.GetMsgId() == 2)
+	assert.Equal(t, "hello world", string(body))
 }

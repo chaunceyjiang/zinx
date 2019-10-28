@@ -42,7 +42,7 @@ func (s *Server) Start() {
 				continue
 			}
 
-			dealConn := NewConnection(conn, connID, utils.DefaultHandFunc, s.Router)
+			dealConn := NewConnection(conn, connID, s.Router)
 			go dealConn.Start()
 			connID++
 		}
@@ -64,9 +64,9 @@ func (s *Server) Serve() {
 func NewServer(name string) ziface.IServer {
 	s := &Server{
 		Name:      name,
-		IPVersion: utils.DEFAULT_IP_VERSION,
-		IP:        utils.DEFAULT_IP,
-		Port:      utils.DEFAULT_PORT,
+		IPVersion: "tcp4",
+		IP:        utils.GlobalObject.Host,
+		Port:      utils.GlobalObject.Port,
 		Router:    nil,
 	}
 	return s

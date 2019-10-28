@@ -13,7 +13,7 @@ type IConnection interface {
 
 	RemoteAddr() net.Addr // 获取远程客户端地址信息
 
-	Send([]byte) error // 发送数据
+	SendMsg(uint32,[]byte) error // 发送数据
 }
 
 
