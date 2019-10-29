@@ -10,6 +10,8 @@ import (
 )
 
 type Connection struct {
+	// 当前conn 属于哪个server
+	tcpServer ziface.IServer
 	// 当前业务的原生socket
 	conn *net.TCPConn
 	// 当前连接的ip
@@ -115,7 +117,7 @@ func (c *Connection) Stop() {
 
 	// 关闭原生连接
 	c.conn.Close()
-
+	c.tcpServer.GetConnManager().Remove(c) // 该连接停止,则从连接管理池中删除
 	c.done <- struct{}{}
 	close(c.msgChan)
 	close(c.done)
@@ -148,8 +150,9 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func NewConnection(conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) *Connection {
+func NewConnection(server ziface.IServer,conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) *Connection {
 	c := &Connection{
+		tcpServer:server,
 		conn:      conn,
 		connID:    connIdD,
 		isClosed:  false,
@@ -157,5 +160,6 @@ func NewConnection(conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) 
 		msgHandle: router,
 		msgChan:make(chan []byte),
 	}
+	c.tcpServer.GetConnManager().Add(c)
 	return c
 }
