@@ -27,6 +27,10 @@ type Connection struct {
 	done chan struct{}
 	//无缓冲管道，用于读、写两个goroutine之间的消息通信
 	msgChan chan []byte
+
+	msgBuffChan chan []byte
+
+
 }
 
 // StartReader 处理conn读数据的Goroutine
@@ -63,7 +67,7 @@ func (c *Connection) StartReader() {
 		}
 		if utils.GlobalObject.WorkerPoolSize > 0 {
 			c.msgHandle.SendMsgToTaskQueue(req)
-		}else {
+		} else {
 			go c.msgHandle.DoMsgHandler(req)
 		}
 
@@ -78,7 +82,7 @@ func (c *Connection) StartReader() {
 
 func (c *Connection) StartWriter() {
 	fmt.Println("[Writer Goroutine is running]")
-	defer fmt.Println(c.RemoteAddr().String(),"[ conn writer exit ]")
+	defer fmt.Println(c.RemoteAddr().String(), "[ conn writer exit ]")
 	for {
 		select {
 		case msg := <-c.msgChan:
@@ -86,11 +90,24 @@ func (c *Connection) StartWriter() {
 				fmt.Println("Write connID id ", c.connID, " error ")
 				return
 			}
+		case msg,ok := <-c.msgBuffChan:
+			if ok{
+				if _, err := c.conn.Write(msg); err != nil {
+					fmt.Println("Write connID id ", c.connID, " error ")
+					return
+				}
+
+			}else {
+				fmt.Println("msgBuffChan is Closed")
+				break
+			}
+
 		case <-c.done:
 			return
 		}
 	}
 }
+
 // Start 启动业务连接
 func (c *Connection) Start() {
 
@@ -98,6 +115,8 @@ func (c *Connection) Start() {
 	go c.StartReader()
 	//2 开启用于写回客户端数据流程的Goroutine
 	go c.StartWriter()
+	// hook 调用
+	c.tcpServer.CallOnConnStart(c)
 	for {
 		select {
 		case <-c.done:
@@ -114,12 +133,14 @@ func (c *Connection) Stop() {
 	}
 	// 关闭当前业务连接
 	c.isClosed = true
-
+	// hook 调用
+	c.tcpServer.CallOnConnStop(c)
 	// 关闭原生连接
 	c.conn.Close()
 	c.tcpServer.GetConnManager().Remove(c) // 该连接停止,则从连接管理池中删除
 	c.done <- struct{}{}
 	close(c.msgChan)
+	close(c.msgBuffChan)
 	close(c.done)
 }
 
@@ -136,6 +157,14 @@ func (c *Connection) RemoteAddr() net.Addr {
 }
 
 func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	return c.send(msgId, data, c.msgChan)
+}
+
+func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
+	return c.send(msgId, data, c.msgBuffChan)
+}
+
+func (c *Connection) send(msgId uint32, data []byte, msgChan chan []byte) error {
 	if c.isClosed {
 		return errors.New("Connection closed when send msg\n")
 	}
@@ -146,19 +175,21 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		return errors.New("Pack error msg ")
 	}
 
-	c.msgChan <- msg
+	msgChan <- msg
 	return nil
 }
 
-func NewConnection(server ziface.IServer,conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) *Connection {
+
+func NewConnection(server ziface.IServer, conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) *Connection {
 	c := &Connection{
-		tcpServer:server,
-		conn:      conn,
-		connID:    connIdD,
-		isClosed:  false,
-		done:      make(chan struct{}, 1),
-		msgHandle: router,
-		msgChan:make(chan []byte),
+		tcpServer:   server,
+		conn:        conn,
+		connID:      connIdD,
+		isClosed:    false,
+		done:        make(chan struct{}, 1),
+		msgHandle:   router,
+		msgChan:     make(chan []byte),
+		msgBuffChan: make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
 	}
 	c.tcpServer.GetConnManager().Add(c)
 	return c

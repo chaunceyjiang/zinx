@@ -8,17 +8,22 @@ import (
 )
 
 type Server struct {
-	Name      string     // 服务器名称
-	IPVersion string     // ip版本
-	IP        string     // 服务器绑定的地址
-	Port      int        // 服务器监听的端口
-	msgHandle ziface.ImsgHandle //当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
+	Name        string            // 服务器名称
+	IPVersion   string            // ip版本
+	IP          string            // 服务器绑定的地址
+	Port        int               // 服务器监听的端口
+	msgHandle   ziface.ImsgHandle //当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 	connManager ziface.IConnManager
+
+	//该Server的连接创建时Hook函数
+	onConnStart    func(conn ziface.IConnection)
+	//该Server的连接断开时的Hook函数
+	onConnStop func(conn ziface.IConnection)
 }
 
 func (s *Server) AddRouter(msgId uint32, router ziface.IRouter) {
 	//panic("implement me")
-	s.msgHandle.AddRouter(msgId,router)
+	s.msgHandle.AddRouter(msgId, router)
 }
 
 func (s *Server) Start() {
@@ -71,16 +76,41 @@ func (s *Server) Serve() {
 func (s *Server) GetConnManager() ziface.IConnManager {
 	return s.connManager
 }
+//设置该Server的连接时的Hook函数
+func (s *Server) SetOnConnStart(hook func(connection ziface.IConnection)) {
+	s.onConnStart = hook
+}
+
+//设置该Server的连接断开时的Hook函数
+func (s *Server) SetOnConnStop(hook func(connection ziface.IConnection)) {
+	s.onConnStop = hook
+}
+
+//调用连接OnConnStart Hook函数
+func (s *Server) CallOnConnStart(connection ziface.IConnection){
+	if s.onConnStart != nil {
+		fmt.Println("---> CallOnConnStart....")
+		s.onConnStart(connection)
+	}
+}
+
+//调用连接OnConnStop Hook函数
+func (s *Server) CallOnConnStop(connection ziface.IConnection) {
+	if s.onConnStop != nil {
+		fmt.Println("---> CallOnConnStart....")
+		s.onConnStop(connection)
+	}
+}
 
 func NewServer(name string) ziface.IServer {
 	utils.GlobalObject.Reload()
 	s := &Server{
-		Name:      name,
-		IPVersion: "tcp4",
-		IP:        utils.GlobalObject.Host,
-		Port:      utils.GlobalObject.Port,
-		msgHandle: NewMsgHandle(),
-		connManager:NewConnManager(),
+		Name:        name,
+		IPVersion:   "tcp4",
+		IP:          utils.GlobalObject.Host,
+		Port:        utils.GlobalObject.Port,
+		msgHandle:   NewMsgHandle(),
+		connManager: NewConnManager(),
 	}
 	return s
 

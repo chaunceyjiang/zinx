@@ -14,6 +14,8 @@ type IConnection interface {
 	RemoteAddr() net.Addr // 获取远程客户端地址信息
 
 	SendMsg(uint32,[]byte) error // 发送数据
+
+	SendBuffMsg(uint32,[]byte) error
 }
 
 
