@@ -24,7 +24,7 @@ func (c *ConnManager) Remove(connection ziface.IConnection) {
 	c.connLock.Lock()
 	defer c.connLock.Unlock()
 	delete(c.connections, connection.GetConnID())
-	fmt.Println("connection Remove ConnID=", connection.GetConnID(), " successfully: conn num = ", connMgr.Len())
+	fmt.Println("connection Remove ConnID=", connection.GetConnID(), " successfully: conn num = ", c.Len())
 }
 func (c *ConnManager) Len() int {
 	return len(c.connections)
