@@ -40,8 +40,6 @@ func (c *ConnManager) Get(connId uint32) (ziface.IConnection, error) {
 }
 
 func (c *ConnManager) ClearConn() {
-	c.connLock.Lock()
-	defer c.connLock.Unlock()
 	for _, conn := range c.connections {
 		conn.Stop()
 	}
