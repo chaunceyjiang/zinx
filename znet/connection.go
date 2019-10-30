@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"zinx/utils"
 	"zinx/ziface"
 )
@@ -30,7 +31,8 @@ type Connection struct {
 
 	msgBuffChan chan []byte
 
-
+	property     map[string]interface{}
+	propertyLock sync.RWMutex
 }
 
 // StartReader 处理conn读数据的Goroutine
@@ -90,14 +92,14 @@ func (c *Connection) StartWriter() {
 				fmt.Println("Write connID id ", c.connID, " error ")
 				return
 			}
-		case msg,ok := <-c.msgBuffChan:
-			if ok{
+		case msg, ok := <-c.msgBuffChan:
+			if ok {
 				if _, err := c.conn.Write(msg); err != nil {
 					fmt.Println("Write connID id ", c.connID, " error ")
 					return
 				}
 
-			}else {
+			} else {
 				fmt.Println("msgBuffChan is Closed")
 				break
 			}
@@ -179,7 +181,27 @@ func (c *Connection) send(msgId uint32, data []byte, msgChan chan []byte) error 
 	return nil
 }
 
+func (c *Connection) SetProperty(key string, value interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+	c.property[key] = value
+}
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.RUnlock()
+	c.propertyLock.RUnlock()
 
+	value, ok := c.property[key]
+	if ok {
+		return value, nil
+	}
+	return nil, errors.New("no property found\n")
+}
+
+func (c *Connection) RemoveProperty(key string) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.Unlock()
+	delete(c.property, key)
+}
 func NewConnection(server ziface.IServer, conn *net.TCPConn, connIdD uint32, router ziface.ImsgHandle) *Connection {
 	c := &Connection{
 		tcpServer:   server,
