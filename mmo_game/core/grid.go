@@ -10,7 +10,7 @@ type Grid struct {
 	MinX      int // 格子左边界
 	MaxX      int
 	MinY      int
-	MaxY      int          // 格子小边界
+	MaxY      int          // 格子下边界
 	playerIDs map[int]bool // 当前格子内的晚间或则物体的id
 	pIDLock   sync.RWMutex
 }
